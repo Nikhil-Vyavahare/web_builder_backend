@@ -33,7 +33,7 @@ public class GeminiService {
         try {
             // Full prompt for HTML generation.
             String fullPrompt = "Generate a complete HTML page with inline CSS and JS. " +
-                    "Do not provide separate CSS or JS files. " +
+                    "Do not provide separate CSS or JS files. " + "Do not explain anything just give"+
                     "Only HTML content inside <html> tags. \n\nUser request: " + userPrompt;
 
             JSONObject requestBody = new JSONObject();
@@ -80,8 +80,14 @@ public class GeminiService {
     public String enhancePrompt(String userPrompt) {
         OkHttpClient client = new OkHttpClient();
         try {
-            String fullPrompt = "Improve and expand this user prompt for generating a modern, responsive, and clean HTML UI: \n\n"
-                    + userPrompt;
+            String fullPrompt =
+                "Rewrite the following user prompt into a single, clear, and professional instruction " +
+                "for generating a modern, responsive, and visually polished HTML UI. " +
+                "The UI should follow best design practices, be production-ready, and use clean, semantic HTML, " +
+                "CSS (or inline styles), and JavaScript. " +
+                "Do not provide multiple options. Do not explain. " +
+                "Only return the enhanced prompt as plain text.\n\n"
+                + userPrompt;
 
             JSONObject requestBody = new JSONObject();
             JSONArray contents = new JSONArray();
