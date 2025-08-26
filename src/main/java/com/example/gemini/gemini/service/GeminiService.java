@@ -10,6 +10,7 @@ import com.example.gemini.gemini.Entity.GeneratedCode;
 import okhttp3.*;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -29,11 +30,11 @@ public class GeminiService {
 
     // Generate HTML code using Gemini 2.5 Flash
     public GeneratedCode callGeminiAPI(String userPrompt) {
-        try {
-            String fullPrompt = "Generate a complete HTML page with inline CSS and JS. "
-                    + "Do not provide separate CSS or JS files. Do not explain anything; just give "
-                    + "only HTML content inside <html> tags.\n\nUser request: " + userPrompt;
+        String fullPrompt = "Generate only a valid <html> page with inline CSS and JS. "
+                + "No explanations, no markdown. Keep output optimized.\n\nUser request: "
+                + userPrompt;
 
+        try {
             JSONObject requestBody = buildRequest(fullPrompt);
 
             Request request = new Request.Builder()
@@ -45,7 +46,6 @@ public class GeminiService {
                 String responseBody = response.body() != null ? response.body().string() : "";
 
                 if (!response.isSuccessful()) {
-                    // Instead of throwing, return error wrapped in GeneratedCode
                     return new GeneratedCode(userPrompt,
                             "<!-- Gemini API Error: HTTP " + response.code() + " Body: " + responseBody + " -->",
                             "html");
@@ -69,9 +69,65 @@ public class GeminiService {
                 return new GeneratedCode(userPrompt, generatedCode, "html");
             }
 
+        } catch (SocketTimeoutException e) {
+            // Timeout handling → retry with second API key if available
+            if (apiKey2 != null && !apiKey2.isEmpty()) {
+                return retryWithBackupKey(userPrompt, fullPrompt);
+            }
+            return new GeneratedCode(userPrompt,
+                    "<!-- Failed to generate UI: timeout (Gemini took too long, Railway may have killed request) -->",
+                    "html");
+        } catch (IOException e) {
+            return new GeneratedCode(userPrompt,
+                    "<!-- Gemini request failed (I/O error): " + e.getMessage() + " -->",
+                    "html");
         } catch (Exception e) {
             return new GeneratedCode(userPrompt,
                     "<!-- Failed to generate UI: " + e.getMessage() + " -->",
+                    "html");
+        }
+    }
+
+    // Retry with backup key if first attempt failed
+    private GeneratedCode retryWithBackupKey(String userPrompt, String fullPrompt) {
+        try {
+            JSONObject requestBody = buildRequest(fullPrompt);
+
+            Request request = new Request.Builder()
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey2)
+                    .post(RequestBody.create(requestBody.toString(), MediaType.parse("application/json")))
+                    .build();
+
+            try (Response response = client.newCall(request).execute()) {
+                String responseBody = response.body() != null ? response.body().string() : "";
+
+                if (!response.isSuccessful()) {
+                    return new GeneratedCode(userPrompt,
+                            "<!-- Gemini Backup API Error: HTTP " + response.code() + " Body: " + responseBody + " -->",
+                            "html");
+                }
+
+                JSONObject json = new JSONObject(responseBody);
+                if (!json.has("candidates")) {
+                    return new GeneratedCode(userPrompt,
+                            "<!-- Gemini Backup returned no candidates. Response: " + responseBody + " -->",
+                            "html");
+                }
+
+                String generatedCode = json
+                        .getJSONArray("candidates")
+                        .getJSONObject(0)
+                        .getJSONObject("content")
+                        .getJSONArray("parts")
+                        .getJSONObject(0)
+                        .getString("text");
+
+                return new GeneratedCode(userPrompt, generatedCode, "html");
+            }
+
+        } catch (Exception e) {
+            return new GeneratedCode(userPrompt,
+                    "<!-- Backup Gemini also failed: " + e.getMessage() + " -->",
                     "html");
         }
     }
@@ -110,6 +166,8 @@ public class GeminiService {
                         .getString("text");
             }
 
+        } catch (SocketTimeoutException e) {
+            return "Gemini enhancePrompt failed: timeout (too slow)";
         } catch (IOException e) {
             return "Gemini request failed (I/O error): " + e.getMessage();
         } catch (Exception e) {
