@@ -1,6 +1,5 @@
 package com.example.gemini.gemini.service;
 
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,28 +12,18 @@ import okhttp3.*;
 @Service
 public class GeminiService {
 
-    // Removed the GeneratedCodeRepository dependency as we are no longer saving to a database.
-    // private final GeneratedCodeRepository repo;
-
     @Value("${gemini.api.key}")
     private String apiKey;
     @Value("${gemini.api.key2}")
     private String apiKey2;
 
-    // We've removed the constructor that injected the repository.
-    // public GeminiService(GeneratedCodeRepository repo) {
-    //     this.repo = repo;
-    // }
-
-
-    // Changed the return type from GeneratedCode to String, as we no longer save and return the entity.
+    // Generate HTML code using Gemini 2.5 Flash
     public GeneratedCode callGeminiAPI(String userPrompt) {
         OkHttpClient client = new OkHttpClient();
         try {
-            // Full prompt for HTML generation.
             String fullPrompt = "Generate a complete HTML page with inline CSS and JS. " +
-                    "Do not provide separate CSS or JS files. " + "Do not explain anything just give"+
-                    "Only HTML content inside <html> tags. \n\nUser request: " + userPrompt;
+                    "Do not provide separate CSS or JS files. Do not explain anything; just give " +
+                    "Only HTML content inside <html> tags.\n\nUser request: " + userPrompt;
 
             JSONObject requestBody = new JSONObject();
             JSONArray contents = new JSONArray();
@@ -45,12 +34,12 @@ public class GeminiService {
             requestBody.put("contents", contents);
 
             Request request = new Request.Builder()
-                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey)
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey)
                     .post(RequestBody.create(requestBody.toString(), MediaType.parse("application/json")))
                     .build();
 
             Response response = client.newCall(request).execute();
-            String responseBody = response.body().string(); // read first
+            String responseBody = response.body().string();
 
             if (!response.isSuccessful()) {
                 throw new RuntimeException(
@@ -67,27 +56,19 @@ public class GeminiService {
                     .getJSONObject(0)
                     .getString("text");
 
-            // Removed the database save operation: repo.save(codeEntity);
-             GeneratedCode codeEntity = new GeneratedCode(userPrompt, generatedCode, "html");
-            // Return the generated code directly.
-            return codeEntity;
+            return new GeneratedCode(userPrompt, generatedCode, "html");
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate UI: " + e.getMessage(), e);
         }
     }
 
+    // Enhance prompt using Gemini 2.5 Flash
     public String enhancePrompt(String userPrompt) {
         OkHttpClient client = new OkHttpClient();
         try {
-            String fullPrompt =
-                "Rewrite the following user prompt into a single, clear, and professional instruction " +
-                "for generating a modern, responsive, and visually polished HTML UI. " +
-                "The UI should follow best design practices, be production-ready, and use clean, semantic HTML, " +
-                "CSS (or inline styles), and JavaScript. " +
-                "Do not provide multiple options. Do not explain. " +
-                "Only return the enhanced prompt as plain text.\n\n"
-                + userPrompt;
+            String fullPrompt = "Improve and expand this user prompt for generating a modern, responsive, and clean HTML UI: \n\n"
+                    + userPrompt;
 
             JSONObject requestBody = new JSONObject();
             JSONArray contents = new JSONArray();
@@ -98,7 +79,7 @@ public class GeminiService {
             requestBody.put("contents", contents);
 
             Request request = new Request.Builder()
-                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey2)
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey2)
                     .post(RequestBody.create(requestBody.toString(), MediaType.parse("application/json")))
                     .build();
 
